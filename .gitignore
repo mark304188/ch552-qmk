@@ -1,0 +1,12 @@
+build/
+*.ihx
+*.hex
+*.bin
+*.rel
+*.lst
+*.asm
+*.sym
+*.map
+*.mem
+*.lk
+__pycache__/
