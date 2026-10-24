@@ -1,13 +1,13 @@
 # Makefile - CH552 QMK/VIA keyboard firmware
 #
 # Targets: all (default), flash, size, clean
-# Board:   BOARD=default (3x4 matrix) or BOARD=4key (direct 4-key board)
+# Board:   BOARD=4key (default, direct 4-key board) or BOARD=default (3x4 matrix)
 #
 # Requires SDCC 4.x.  The CH552 has 16 KB flash; the upper 2 KB
 # (0x3800-0x3FFF) is the WCH ISP bootloader, so application code is
 # limited to 0x3800 bytes.
 
-BOARD ?= default
+BOARD ?= 4key
 
 ifeq ($(BOARD),4key)
 PROJECT := ch552_qmk_4key

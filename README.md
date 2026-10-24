@@ -6,6 +6,9 @@
 它不使用完整的 QMK 代码库，而是实现了 **QMK/VIA 的 raw HID 主机协议**，
 因此可以用 VIA 直接改键、调 RGB，不需要每次重新编译。
 
+默认构建目标是 **4 键直连板**：直接执行 `make` 即可。3×4 矩阵板用
+`make BOARD=default` 构建。
+
 ## 特性
 
 * CH552 USB 全速复合 HID 设备
@@ -59,7 +62,7 @@
 │       ├── eeprom.c            Data Flash 读写
 │       └── debug.c             时钟、延时、1 ms 系统 tick
 ├── via/
-│   ├── ch552_qmk_pad.json      VIA 3 键盘定义（3x4 默认布局）
+│   ├── ch552_qmk_pad.json      VIA 3 键盘定义（3x4 布局）
 │   ├── ch552_qmk_pad_via2.json VIA 2 兼容定义（3x4）
 │   ├── ch552_qmk_4key.json     VIA 3 键盘定义（4 键直连板）
 │   └── ch552_qmk_4key_via2.json VIA 2 兼容定义（4 键）
@@ -72,9 +75,9 @@
 
 ---
 
-## 默认硬件连接
+## 3×4 矩阵板硬件连接
 
-默认配置是 **3 行 × 4 列 = 12 键**，每个键带一颗 WS2812：
+3×4 配置是 **3 行 × 4 列 = 12 键**，每个键带一颗 WS2812：
 
 | CH552 | 方向 | 连接到 |
 |-------|------|--------|
@@ -105,7 +108,7 @@ WS2812 的电源请从外部 5V 走线，不要经过 CH552 的 3.3V LDO。
 
 ## 4 键直连板
 
-对应的板级配置在 `firmware/include/board_4key.h`，默认 3×4 配置完全保留。
+对应的板级配置在 `firmware/include/board_4key.h`，3×4 配置完全保留。
 
 | 丝印 | CH552 引脚 | 说明 |
 |------|------------|------|
@@ -131,13 +134,13 @@ But4 -> MO(1)    按住 But4 时，But1..But3 变成 F1..F3
 编译和烧录：
 
 ```bash
-make BOARD=4key             # 16 MHz，输出 build/ch552_qmk_4key.hex
-make BOARD=4key VCC=3V3     # 12 MHz
-make BOARD=4key flash       # ch55xtool
+make                       # 默认 4 键板，16 MHz
+make VCC=3V3               # 12 MHz
+make flash                 # ch55xtool
 ```
 
 4 键固件的 VIA 定义是 `via/ch552_qmk_4key.json`，VID:PID 为
-`1209:5524`。默认 3×4 固件仍然是 `1209:5523`，两者可以分别加载。
+`1209:5524`。3×4 固件是 `1209:5523`，两者可以分别加载。
 
 > VIA 明确拒绝 `0xFEED` 作为 vendorId，所以固件和 JSON 都改用了
 > `0x1209`。**需要重新烧录新固件**，否则设备仍然枚举为 `FEED:5524`，
@@ -145,7 +148,7 @@ make BOARD=4key flash       # ch55xtool
 
 4 键板在 Windows 10/11 下已验证：标准键盘输入、VIA 改键、拔插后保存均正常。
 它使用 `CONSUMER_ENABLE 0`（无 report ID 的 8 字节 boot keyboard），因此
-不发送多媒体键；默认 3×4 板仍然是 `CONSUMER_ENABLE 1`。
+不发送多媒体键；3×4 板仍然是 `CONSUMER_ENABLE 1`。
 
 注意：
 
@@ -165,14 +168,17 @@ make BOARD=4key flash       # ch55xtool
 
 ```bash
 sudo apt install sdcc
-make
+make                 # 默认 4 键板
+make BOARD=default   # 3×4 矩阵板
 ```
 
 输出：
 
 ```
-build/ch552_qmk.hex   Intel HEX，WCHISPTool 用
-build/ch552_qmk.bin   原始二进制，ch55xtool 等用
+build/ch552_qmk_4key.hex   默认 4 键板的 Intel HEX
+build/ch552_qmk_4key.bin   默认 4 键板的原始二进制
+build/ch552_qmk.hex        3×4 板的 Intel HEX
+build/ch552_qmk.bin        3×4 板的原始二进制
 ```
 
 常用选项：
@@ -189,13 +195,15 @@ make size
 
 ### 烧录
 
-Windows：WCHISPTool，选择 `build/ch552_qmk.hex`。
+Windows：WCHISPTool，默认选择 `build/ch552_qmk_4key.hex`；3×4 板选择
+`build/ch552_qmk.hex`。
 
 Linux/macOS：
 
 ```bash
 pip install ch55xtool
-make flash
+make flash                 # 默认 4 键板
+make BOARD=default flash   # 3×4 板
 ```
 
 首次烧录通常需要按住板上的 BOOT/下载键再上电，让芯片进入 WCH ISP
@@ -281,7 +289,7 @@ firmware/include/keyboard_config.h
 ```
 
 * 不需要 RGB：`RGB_ENABLE 0`，`WS2812_LED_COUNT 0`，固件会小约 3 KB。
-* 默认 3×4 配置使用 SPI0（P1.5/P1.7）；4 键配置使用
+* 3×4 配置使用 SPI0（P1.5/P1.7）；4 键配置使用
   `WS2812_DRIVER_BITBANG 1`，只占 P1.5。
 * `WS2812_LED_COUNT` 最大 32（受 1 KB xRAM 限制）。
 * 灯珠顺序大多是 GRB，设 `WS2812_GRB 1`；如果是 RGB 顺序设为 0。
@@ -350,7 +358,7 @@ pip install pyusb
 * 修饰键 `0xE0`–`0xE7`：`KC_LCTL`、`KC_LSFT`、`KC_LGUI` 等。
 * QMK 多媒体键 `0xA5`–`0xBE`（`KC_MUTE`、`KC_VOLU`、`KC_MPLY`、
   `KC_BRIU` 等），在 `CONSUMER_ENABLE 1` 时通过 Consumer Control 报告发送
-  （默认 3×4 板启用；4 键板为了 Windows 兼容性关闭）。
+  （3×4 板启用；4 键板为了 Windows 兼容性关闭）。
 * 层键：
   * `MO(layer)`：当前 QMK `0x5220 + layer`，也兼容旧的 `0x5100 + layer`。
   * `TG(layer)`：当前 `0x5260 + layer`，也兼容旧的 `0x5200 + layer`。
@@ -440,15 +448,15 @@ value id：`1` 亮度、`2` 效果、`3` 速度、`4` 色相+饱和度。
 * 矩阵没有内置去鬼键；多键同时按下请加二极管。
 * `CONSUMER_ENABLE`：1 = 键盘 report ID + Consumer 多媒体；0 = 标准
   8 字节键盘（Windows 兼容性最好，4 键板使用）。
-* 默认 3×4 板的 RGB 使用 P1.5/P1.7；4 键板只使用 P1.5 做 bit-bang，
+* 3×4 板的 RGB 使用 P1.5/P1.7；4 键板只使用 P1.5 做 bit-bang，
   P1.7 留给 But1。矩阵引脚和 VIA JSON 必须与实际配置一致。
-* 发送 WS2812 帧时会短暂关闭中断。默认 12 颗约 0.3 ms；4 键板 4 颗
+* 发送 WS2812 帧时会短暂关闭中断。3×4 板 12 颗约 0.3 ms；4 键板 4 颗
   约 0.1 ms。灯珠越多，USB 抖动越明显，建议不超过 16–24 颗。
 * 4 键板的 WS2812 是软件 bit-bang，时序按 12/16 MHz 校准；24 MHz 会
-  在编译时被拒绝。默认 3×4 板的 SPI 驱动可用于 12/16/24 MHz。
+  在编译时被拒绝。3×4 板的 SPI 驱动可用于 12/16/24 MHz。
 * 代码约 12 KB，用户区上限 14 KB（`0x3800`）。关闭 RGB 后约 9 KB。
-* USB VID/PID：默认 3×4 板为 `0x1209:0x5523`，4 键板为
-  `0x1209:0x5524`。`0x1209` 是 pid.codes 的开源硬件 VID；正式发布请按
+* USB VID/PID：默认 4 键板为 `0x1209:0x5524`，3×4 板为
+  `0x1209:0x5523`。`0x1209` 是 pid.codes 的开源硬件 VID；正式发布请按
   pid.codes 规则申请 PID，并同步修改 VIA JSON。
 
 ---

@@ -5,6 +5,9 @@ full-speed device controller). It does not use the full QMK code base;
 instead it implements the **QMK/VIA raw HID host protocol**, so VIA can
 remap keys and control RGB without recompiling the firmware.
 
+The default build target is the **4-key direct-wired board**: just run
+`make`. The 3x4 matrix board is built with `make BOARD=default`.
+
 [中文](README.md) | English
 
 ## Features
@@ -62,7 +65,7 @@ remap keys and control RGB without recompiling the firmware.
 │       ├── eeprom.c            Data Flash access
 │       └── debug.c             clock, delays, 1 ms system tick
 ├── via/
-│   ├── ch552_qmk_pad.json      VIA 3 definition (default 3x4 layout)
+│   ├── ch552_qmk_pad.json      VIA 3 definition (3x4 layout)
 │   ├── ch552_qmk_pad_via2.json VIA 2 compatible definition (3x4)
 │   ├── ch552_qmk_4key.json     VIA 3 definition (4-key board)
 │   └── ch552_qmk_4key_via2.json VIA 2 compatible definition (4-key)
@@ -78,9 +81,9 @@ The register/descriptor/protocol details are still useful as a reference.
 
 ---
 
-## Default hardware wiring
+## 3x4 matrix board wiring
 
-The default profile is **3 rows x 4 columns = 12 keys**, with one WS2812 per
+The 3x4 profile is **3 rows x 4 columns = 12 keys**, with one WS2812 per
 key:
 
 | CH552 | Direction | Connected to |
@@ -115,7 +118,7 @@ LDO. Twelve white LEDs draw roughly 700 mA; the default brightness is
 
 ## 4-key direct-wired board
 
-The board profile lives in `firmware/include/board_4key.h`. The default 3x4
+The board profile lives in `firmware/include/board_4key.h`. The 3x4
 configuration is left untouched.
 
 | Silkscreen | CH552 pin | Notes |
@@ -143,14 +146,14 @@ But4 -> MO(1)    hold But4: But1..But3 become F1..F3
 Build and flash:
 
 ```bash
-make BOARD=4key             # 16 MHz, output: build/ch552_qmk_4key.hex
-make BOARD=4key VCC=3V3     # 12 MHz
-make BOARD=4key flash       # ch55xtool
+make                       # default 4-key board, 16 MHz
+make VCC=3V3               # 12 MHz
+make flash                 # ch55xtool
 ```
 
 The VIA definition for the 4-key firmware is
-`via/ch552_qmk_4key.json`, VID:PID `1209:5524`. The default 3x4 firmware
-uses `1209:5523`; both definitions can be loaded separately.
+`via/ch552_qmk_4key.json`, VID:PID `1209:5524`. The 3x4 firmware uses
+`1209:5523`; both definitions can be loaded separately.
 
 > VIA explicitly rejects `0xFEED` as a vendor ID, so the firmware and the
 > JSON definitions use `0x1209`. You must flash the firmware with the new
@@ -160,7 +163,7 @@ uses `1209:5523`; both definitions can be loaded separately.
 The 4-key board has been verified under Windows 10/11: standard keyboard
 input, VIA remapping, and persistence across replug all work. It uses
 `CONSUMER_ENABLE 0` (an 8-byte boot keyboard without report IDs). The
-default 3x4 board keeps `CONSUMER_ENABLE 1`.
+3x4 board keeps `CONSUMER_ENABLE 1`.
 
 Notes:
 
@@ -182,14 +185,17 @@ SDCC 4.x is required:
 
 ```bash
 sudo apt install sdcc
-make
+make                 # default 4-key board
+make BOARD=default   # 3x4 matrix board
 ```
 
 Outputs:
 
 ```
-build/ch552_qmk.hex   Intel HEX, for WCHISPTool
-build/ch552_qmk.bin   raw binary, for ch55xtool and similar tools
+build/ch552_qmk_4key.hex   Intel HEX for the default 4-key board
+build/ch552_qmk_4key.bin   raw binary for the default 4-key board
+build/ch552_qmk.hex        Intel HEX for the 3x4 board
+build/ch552_qmk.bin        raw binary for the 3x4 board
 ```
 
 Common options:
@@ -206,13 +212,15 @@ The default is 16 MHz. The CH552 datasheet requires VCC above 3.3 V for
 
 ### Flashing
 
-Windows: use WCHISPTool and select `build/ch552_qmk.hex`.
+Windows: use WCHISPTool and select `build/ch552_qmk_4key.hex` by default;
+for the 3x4 board select `build/ch552_qmk.hex`.
 
 Linux/macOS:
 
 ```bash
 pip install ch55xtool
-make flash
+make flash                 # default 4-key board
+make BOARD=default flash   # 3x4 board
 ```
 
 The first flash usually requires holding the BOOT/download button while
@@ -304,7 +312,7 @@ complete example.
 
 * To disable RGB: `RGB_ENABLE 0`, `WS2812_LED_COUNT 0`; this saves about
   3 KB of flash.
-* The default 3x4 profile uses SPI0 (P1.5/P1.7); the 4-key profile uses
+* The 3x4 profile uses SPI0 (P1.5/P1.7); the 4-key profile uses
   `WS2812_DRIVER_BITBANG 1` and only P1.5.
 * `WS2812_LED_COUNT` is limited to 32 by the 1 KB xRAM.
 * Most LEDs use GRB order; set `WS2812_GRB 1`, or 0 for RGB order.
@@ -379,7 +387,7 @@ detach it. Running with `sudo` is also an option.
 * Modifiers `0xE0`-`0xE7`: `KC_LCTL`, `KC_LSFT`, `KC_LGUI`, etc.
 * QMK media keycodes `0xA5`-`0xBE` (`KC_MUTE`, `KC_VOLU`, `KC_MPLY`,
   `KC_BRIU`, etc.). These are sent through the Consumer Control report when
-  `CONSUMER_ENABLE 1` (default 3x4 board; disabled on the 4-key board for
+  `CONSUMER_ENABLE 1` (3x4 board; disabled on the 4-key board for
   Windows compatibility).
 * Layer keys:
   * `MO(layer)`: current QMK `0x5220 + layer`, also compatible with the old
@@ -482,19 +490,19 @@ loop is calibrated for 12/16 MHz; 24 MHz is rejected.
   are needed.
 * `CONSUMER_ENABLE`: 1 = keyboard report IDs + Consumer media; 0 = standard
   8-byte keyboard (best Windows compatibility, used by the 4-key board).
-* The default 3x4 RGB uses P1.5/P1.7; the 4-key board uses only P1.5 for
+* The 3x4 RGB uses P1.5/P1.7; the 4-key board uses only P1.5 for
   bit-bang, leaving P1.7 for But1. Matrix pins and VIA JSON must match the
   actual configuration.
-* WS2812 frames briefly disable interrupts. Twelve LEDs take about 0.3 ms;
+* WS2812 frames briefly disable interrupts. The 3x4 board's twelve LEDs take about 0.3 ms;
   the 4-key board's four LEDs take about 0.1 ms. More LEDs increase USB
   jitter; 16-24 LEDs is a sensible upper range.
 * The 4-key board's WS2812 driver is software bit-banged and calibrated for
-  12/16 MHz; 24 MHz is rejected at compile time. The default 3x4 SPI
-  driver supports 12/16/24 MHz.
+  12/16 MHz; 24 MHz is rejected at compile time. The 3x4 SPI driver
+  supports 12/16/24 MHz.
 * Firmware size is about 12 KB with a 14 KB user flash limit (`0x3800`);
   disabling RGB saves about 3 KB.
-* USB VID/PID: default 3x4 board `0x1209:0x5523`, 4-key board
-  `0x1209:0x5524`. `0x1209` is the pid.codes open-source hardware VID;
+* USB VID/PID: default 4-key board `0x1209:0x5524`, 3x4 board
+  `0x1209:0x5523`. `0x1209` is the pid.codes open-source hardware VID;
   for a formal release, allocate a PID according to pid.codes rules and
   update the VIA JSON.
 
