@@ -4,7 +4,7 @@
 
 | 项目 | 值 |
 |------|----|
-| VID:PID | 默认 3×4 板 `0x1209:0x5523`，4 键板 `0x1209:0x5524` |
+| VID:PID | 3×4 板 `0x1209:0x5523`，4 键板 `0x1209:0x5524` |
 | bcdUSB | USB 2.0 full speed |
 | EP0 | 64 字节控制端点 |
 | 接口 0 | HID 键盘 + Consumer Control |
@@ -345,6 +345,6 @@ TX: [09 ...]
 * 只暴露 Direct 模式
 * 排除 `via.c`，不能与 VIA 同时使用
 * 4 键板输出 `ch552_qmk_4key_openrgb_qmk.hex`
-* 3×4 板输出 `ch552_qmk_openrgb_qmk.hex`
+* 3×4 板输出 `ch552_qmk_openrgb_qmk.hex`（`make BOARD=3x4 OPENRGB_QMK=1`）
 
 响应最后两字节为状态（50 = 成功）和 `100`（End Of Message）。

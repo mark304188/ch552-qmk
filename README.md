@@ -7,7 +7,7 @@
 因此可以用 VIA 直接改键、调 RGB，不需要每次重新编译。
 
 默认构建目标是 **4 键直连板**：直接执行 `make` 即可。3×4 矩阵板用
-`make BOARD=default` 构建。
+`make BOARD=3x4` 构建。
 
 ## 特性
 
@@ -178,7 +178,7 @@ make flash                 # ch55xtool
 ```bash
 sudo apt install sdcc
 make                 # 默认 4 键板
-make BOARD=default   # 3×4 矩阵板
+make BOARD=3x4   # 3×4 矩阵板
 ```
 
 输出：
@@ -201,7 +201,7 @@ make VCC=3V3            # 3.3 V 供电，默认 12 MHz
 make FREQ_SYS=24000000  # 24 MHz（5 V）
 make                    # 4 键板，默认包含 VIA + VialRGB
 make OPENRGB_QMK=1      # 旧版仅灯光 OpenRGB（64 字节报告，无 VIA）
-make BOARD=default      # 3×4 板，VIA-only（空间不足）
+make BOARD=3x4      # 3×4 板，VIA-only（空间不足）
 make clean
 make size
 ```
@@ -219,7 +219,7 @@ Linux/macOS：
 ```bash
 pip install ch55xtool
 make flash                 # 默认 4 键板
-make BOARD=default flash   # 3×4 板
+make BOARD=3x4 flash   # 3×4 板
 ```
 
 首次烧录通常需要按住板上的 BOOT/下载键再上电，让芯片进入 WCH ISP
@@ -449,7 +449,7 @@ Data Flash；需要掉电保存时，可在 VIA 里再保存一次当前灯光�
 
 ```bash
 make OPENRGB_QMK=1                 # 4 键板
-make BOARD=default OPENRGB_QMK=1   # 3×4 板
+make BOARD=3x4 OPENRGB_QMK=1   # 3×4 板
 ```
 
 在 OpenRGB 中添加 **QMK OpenRGB Device**，VID `0x1209`，PID `0x5524`

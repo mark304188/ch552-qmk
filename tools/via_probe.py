@@ -28,7 +28,7 @@ try:
 except ImportError:
     sys.exit("pyusb is required: pip install pyusb")
 
-# Default 3x4 board and the 4-key board profile.
+# 3x4 board and 4-key board profiles.
 DEVICES = [
     (0x1209, 0x5523, "3x4"),
     (0x1209, 0x5524, "4key"),

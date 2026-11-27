@@ -16,7 +16,7 @@
  *
  * Select this profile with:
  *     make BOARD=4key
- * The default 3x4 configuration in keyboard_config.h is not modified.
+ * The 3x4 configuration in keyboard_config.h is not modified.
  *==========================================================================*/
 
 #ifndef __BOARD_4KEY_H__

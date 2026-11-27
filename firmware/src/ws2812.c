@@ -3,7 +3,7 @@
  *
  * Two drivers are available:
  *
- *  - SPI0 driver (default 3x4 board): each WS2812 bit is encoded as three
+ *  - SPI0 driver (3x4 board): each WS2812 bit is encoded as three
  *    SPI bits (100 = 0, 110 = 1).  Pins are fixed: P1.5 = MOSI (data),
  *    P1.7 = SCK.  Stable timing, but P1.7 is occupied.
  *

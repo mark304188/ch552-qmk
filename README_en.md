@@ -6,7 +6,7 @@ instead it implements the **QMK/VIA raw HID host protocol**, so VIA can
 remap keys and control RGB without recompiling the firmware.
 
 The default build target is the **4-key direct-wired board**: just run
-`make`. The 3x4 matrix board is built with `make BOARD=default`.
+`make`. The 3x4 matrix board is built with `make BOARD=3x4`.
 
 [中文](README.md) | English
 
@@ -195,7 +195,7 @@ SDCC 4.x is required:
 ```bash
 sudo apt install sdcc
 make                 # default 4-key board
-make BOARD=default   # 3x4 matrix board
+make BOARD=3x4   # 3x4 matrix board
 ```
 
 Outputs:
@@ -218,7 +218,7 @@ make VCC=3V3            # 3.3 V supply, 12 MHz by default
 make FREQ_SYS=24000000  # 24 MHz (5 V)
 make                    # 4-key board, VIA + VialRGB by default
 make OPENRGB_QMK=1      # legacy lighting-only OpenRGB (64-byte, no VIA)
-make BOARD=default      # 3x4 board, VIA-only (no room for VialRGB)
+make BOARD=3x4      # 3x4 board, VIA-only (no room for VialRGB)
 make clean
 make size
 ```
@@ -236,7 +236,7 @@ Linux/macOS:
 ```bash
 pip install ch55xtool
 make flash                 # default 4-key board
-make BOARD=default flash   # 3x4 board
+make BOARD=3x4 flash   # 3x4 board
 ```
 
 The first flash usually requires holding the BOOT/download button while
@@ -487,7 +487,7 @@ reports, Direct mode only, and no VIA support.
 
 ```bash
 make OPENRGB_QMK=1                 # 4-key board
-make BOARD=default OPENRGB_QMK=1   # 3x4 board
+make BOARD=3x4 OPENRGB_QMK=1   # 3x4 board
 ```
 
 In OpenRGB, add **QMK OpenRGB Device** with VID `0x1209` and PID `0x5524`

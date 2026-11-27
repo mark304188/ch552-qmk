@@ -1,7 +1,7 @@
 # Makefile - CH552 QMK/VIA keyboard firmware
 #
 # Targets: all (default), flash, size, clean
-# Board:   BOARD=4key (default, direct 4-key board) or BOARD=default (3x4 matrix)
+# Board:   BOARD=4key (default, direct 4-key board) or BOARD=3x4 (3x4 matrix)
 # OpenRGB: the 4-key firmware includes VialRGB (VIA + OpenRGB) by default.
 #          OPENRGB_QMK=1 builds the legacy 64-byte QMK-OpenRGB rev D
 #          protocol instead (VIA cannot be used with that build).
@@ -20,16 +20,25 @@ SRC_DIR := firmware/src
 INC_DIR := firmware/include
 BUILD_DIR := build
 
-ifeq ($(BOARD),4key)
+# Keep the old BOARD=default spelling as an alias, but document and use
+# BOARD=3x4 for the 3x4 matrix profile.
+BOARD_PROFILE := $(BOARD)
+ifeq ($(BOARD_PROFILE),default)
+BOARD_PROFILE := 3x4
+endif
+
+ifeq ($(BOARD_PROFILE),4key)
 PROJECT := ch552_qmk_4key
 BOARD_CFLAGS := -DBOARD_4KEY
 VIALRGB_CFLAGS := -DVIALRGB_ENABLE=1
 VIALRGB_SOURCE := $(SRC_DIR)/vialrgb.c
-else
+else ifeq ($(BOARD_PROFILE),3x4)
 PROJECT := ch552_qmk
-BOARD_CFLAGS :=
+BOARD_CFLAGS := -DBOARD_3X4
 VIALRGB_CFLAGS :=
 VIALRGB_SOURCE :=
+else
+$(error Unknown BOARD=$(BOARD); use BOARD=4key or BOARD=3x4)
 endif
 
 .DEFAULT_GOAL := all

@@ -20,11 +20,12 @@
 
 #include "keycodes.h"
 
-/* The 4-key board profile keeps the default 3x4 configuration below
- * untouched.  Select it with -DBOARD_4KEY (make BOARD=4key). */
+/* Select the board profile with BOARD=4key (the default) or BOARD=3x4.
+ * The 3x4 configuration lives below; the 4-key board profile is in
+ * board_4key.h. */
 #ifdef BOARD_4KEY
 #include "board_4key.h"
-#else
+#elif defined(BOARD_3X4)
 
 /*---------------------------------------------------------------*
  * USB identity                                                  *
@@ -166,6 +167,8 @@
     }                                                                \
 }
 
-#endif /* BOARD_4KEY */
+#else
+#error "Select BOARD=4key or BOARD=3x4"
+#endif /* board profile */
 
 #endif /* __KEYBOARD_CONFIG_H__ */
