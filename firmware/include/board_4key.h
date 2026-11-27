@@ -31,7 +31,7 @@
 /* Use a plain 8-byte boot keyboard on interface 0 for maximum Windows
  * compatibility.  Media keys are not needed on this 4-key board. */
 #define CONSUMER_ENABLE     0
-#define USB_DEVICE_VERSION  0x0002
+#define USB_DEVICE_VERSION  0x0003
 #define USB_MANUFACTURER    "CH552"
 #define USB_PRODUCT         "CH552 QMK 4Key"
 
@@ -101,15 +101,16 @@
 /*---------------------------------------------------------------*
  * Default keymap                                                *
  *                                                               *
- * But1 -> 1, But2 -> 2, But3 -> 3, But4 -> momentary layer 1.   *
- * Hold But4: But1..But3 become F1..F3.                          *
+ * But1 -> 1, But2 -> 2, But3 -> 3, But4 -> 4.                   *
+ * Layer 1 still contains F1..F4 for users who assign a layer    *
+ * key through VIA later.                                        *
  *---------------------------------------------------------------*/
 #define DEFAULT_KEYMAP {                                             \
     { /* layer 0 */                                                  \
-        { KC_1, KC_2, KC_3, MO(1) }                                  \
+        { KC_1, KC_2, KC_3, KC_4 }                                  \
     },                                                               \
     { /* layer 1 */                                                  \
-        { KC_F1, KC_F2, KC_F3, KC_TRNS }                             \
+        { KC_F1, KC_F2, KC_F3, KC_F4 }                               \
     }                                                                \
 }
 

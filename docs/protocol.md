@@ -8,7 +8,7 @@
 | bcdUSB | USB 2.0 full speed |
 | EP0 | 64 字节控制端点 |
 | 接口 0 | HID 键盘 + Consumer Control |
-| 接口 1 | HID raw vendor（VIA） |
+| 接口 1 | HID raw vendor（VIA / VialRGB） |
 
 ### 接口 0
 
@@ -34,12 +34,12 @@ Report ID 1 还包含标准的 1 字节 LED 输出报告（Caps/Num/Scroll 等�
 boot protocol（`SET_PROTOCOL(0)`）下只发送 8 字节键盘报告，不带 report ID；
 Consumer 报告暂停发送。
 
-### 接口 1（VIA raw HID）
+### 接口 1（raw HID：VIA / VialRGB）
 
 | 端点 | 方向 | 类型 | 包长 | 间隔 |
 |------|------|------|------|------|
-| `0x82` | IN | interrupt | 32 | 1 ms |
-| `0x03` | OUT | interrupt | 32 | 1 ms |
+| `0x82` | IN | interrupt | 32（VIA / VialRGB） | 1 ms |
+| `0x03` | OUT | interrupt | 32（VIA / VialRGB） | 1 ms |
 
 HID report descriptor：
 
@@ -48,7 +48,9 @@ HID report descriptor：
 * input usage `0x62`，32 × 8 位
 * output usage `0x63`，32 × 8 位
 
-VIA 发来的 32 字节命令从 EP3 进入，固件把回复写到 EP2。
+命令从 EP3 进入，固件把回复写到 EP2。默认 4 键固件（VIA + VialRGB）
+和普通 3×4 VIA 固件都使用 32 字节报告；只有旧版 `OPENRGB_QMK=1`
+改成 64 字节，见第 7 节。
 
 ## 2. VIA 命令
 
@@ -73,7 +75,7 @@ TX: [02 value_id ...]
 | `0x01` uptime | `d[2..5]` 为 32 位毫秒（高字节在前） |
 | `0x02` layout options | 0 |
 | `0x03` matrix state | `d[2]` 原样回显 offset，`d[3]` 起为行位图，bit=1 表示按下 |
-| `0x04` firmware version | `0x00010000` |
+| `0x04` firmware version | `0x00010002` |
 | `0x06` keycodes version | `0x00000009` |
 
 ### 0x03 设置键盘值
@@ -122,6 +124,12 @@ Windows VIA/HID 路径；读取始终返回标准高字节在前格式。
 | `4` | 颜色 | `value` = hue，下一字节 = saturation |
 
 读取时结果写在 `d[3]`（颜色会再写 `d[4]`）。
+
+在默认 4 键固件中，`channel` 为 `0x40`–`0x44` 时会被解释为
+VialRGB 子命令，而不是 VIA 自定义通道；`1`/`2`/`3` 通道保持不变，
+详见第 6 节。3×4 固件没有 VialRGB，这些通道仍按 VIA 自定义通道处理。
+
+`0x09` 保存命令在 VIA 和 VialRGB 两种形式下都会保存同一份 RGB 配置。
 
 ### 0x0A / 0x0B
 
@@ -182,7 +190,7 @@ CH552 的 Data Flash 地址范围 `0xC000`–`0xC0FF`，只有偶地址有效，
 | 偏移 | 内容 |
 |------|------|
 | `0x00`–`0x03` | `CQMK` |
-| `0x04` | 布局版本（当前 2） |
+| `0x04` | 布局版本（当前 3） |
 | `0x05` | `MATRIX_ROWS` |
 | `0x06` | `MATRIX_COLS` |
 | `0x07` | `DYNAMIC_KEYMAP_LAYERS` |
@@ -223,3 +231,120 @@ SPI0_CK_SE = Fsys / 4.8 MHz
 4 键板使用 GPIO bit-bang 驱动（`WS2812_DRIVER_BITBANG`），只占 P1.5。
 软件循环按 12/16 MHz 校准，每个 WS2812 位约 0.8 µs，24 MHz 会在编译
 时报错。两种驱动的 VIA/HID 协议完全相同，只有 RGB 输出方式不同。
+
+---
+
+## 6. VIAL / VIALRGB（默认 4 键固件）
+
+默认 `make` 的 4 键固件包含 OpenRGB 的 **QMK VialRGB** 驱动所需的
+最小 Vial/VialRGB 命令，不需要额外构建选项。raw HID 仍为 32 字节，
+动态键位命令完全不变。3×4 固件因空间不足不包含 VialRGB。
+
+### 6.1 OpenRGB 检测顺序
+
+```text
+TX [01 ...]              -> RX [01 00 0D ...]    VIA 协议 0x000D
+TX [FE 00 ...]           -> RX [04 00 00 00 ...] Vial 协议 4
+                                  [UID 8 bytes]
+                                  [01]             VialRGB 支持标志
+TX [08 40 ...]           -> RX [08 40 01 00 FF]  VialRGB 协议 1，最大亮度 255
+TX [08 42 00 00 ...]     -> RX [08 42 01 00 02 00 FF FF ...]
+```
+
+OpenRGB 要求 VIA 协议 ≥ 9、Vial 协议 ≥ 4，且 VialRGB 标志 bit 0 为 1。
+本固件返回 VIA `0x000D`、Vial `4`、VialRGB `1`。
+
+### 6.2 VialRGB 读取（VIA 命令 `0x08`）
+
+请求格式：
+
+```text
+TX: [08 subcmd args...]
+RX: [08 subcmd payload...]
+```
+
+OpenRGB 从 `data[2]` 开始读取 payload。
+
+| subcmd | 含义 | 响应 |
+|--------|------|------|
+| `0x40` | 信息 | `d[2..3]` VialRGB 版本 1（LE），`d[4]` 最大亮度 255 |
+| `0x41` | 当前模式 | `d[2..3]` 模式 ID（LE），`d[4]` speed，`d[5]` hue，`d[6]` sat，`d[7]` value |
+| `0x42` | 支持的效果 | 请求 `d[2..3]` 为“大于此 ID”；返回若干 16 位 LE ID，未用位置填 `0xFFFF` |
+| `0x43` | LED 数量 | `d[2..3]` = `WS2812_LED_COUNT`（LE） |
+| `0x44` | LED 信息 | 请求 `d[2..3]` 为索引；响应 `d[2]` x、`d[3]` y、`d[4]` flags、`d[5]` row、`d[6]` col、`d[7]` valid |
+
+当前公开的效果 ID：
+
+| ID | OpenRGB 名称 | 内部实现 |
+|----|--------------|----------|
+| `1` | Direct | 逐灯 HSV |
+| `2` | Static | 单色效果（内部效果 1） |
+
+只公开 Direct 和 Static 是为了让 OpenRGB 的模式索引始终有效；其他
+内置动画仍可从 VIA 的灯光页设置。
+
+### 6.3 VialRGB 写入（VIA 命令 `0x07`）
+
+设置模式：
+
+```text
+TX: [07 41 mode_lo mode_hi speed hue sat value ...]
+```
+
+* `mode = 0`：关闭灯光
+* `mode = 1`：Direct 模式
+* `mode = 2`：Static 模式
+* 其他值按 Static 处理
+
+Direct 逐灯快速设置：
+
+```text
+TX: [07 42 start_lo start_hi count h0 s0 v0 h1 s1 v1 ...]
+```
+
+* `start` 是起始 LED 索引（LE）
+* `count` 是本包 LED 数，最多 9 颗（27 字节 HSV）
+* 颜色是 HSV，不是 RGB；固件转换后写入 `led_buf`
+* 收到该命令会自动进入 Direct 模式
+
+保存：
+
+```text
+TX: [09 ...]
+```
+
+把当前亮度、效果、速度、颜色写入 Data Flash 的 RGB 区。
+
+### 6.4 与 VIA 共存
+
+* `0x01`–`0x06`、`0x11`–`0x13` 等 VIA 动态键位命令保持不变。
+* OpenRGB 只使用 `0x07`/`0x08` 的 `0x40`–`0x44` 子命令和 `0xFE`。
+* VIA 仍使用 `0x07`/`0x08` 的通道 `1`/`2`/`3` 控制灯光。
+* 键位保存在 Data Flash，OpenRGB 不会修改它。
+
+> 4 键板默认键位为 `1 2 3 4`，因此 OpenRGB 中会列出 4 颗灯。固件同时
+> 支持 VIA 和 VialRGB，但二者共用一个 raw HID 接口；Windows 下多个
+> 程序同时读取可能互相抢包。添加 OpenRGB 设备时先关闭 VIA，平时尽量
+> 只让一个程序主动刷新。
+>
+> OpenRGB 的 VialRGB 驱动不会扫描任意 VID/PID，只检查
+> `OpenRGB.json` 中 `QMKVialRGBDevices` 已登记的设备和内置白名单。
+> 0x1209:0x5524 需要第一次手动添加，或运行
+> `tools/openrgb_register_vialrgb.py` 写入配置；之后即可自动识别。
+
+---
+
+## 7. 旧版 QMK-OpenRGB（OPENRGB_QMK=1）
+
+`make OPENRGB_QMK=1` 保留原来的 QMK-OpenRGB revision D：
+
+* raw HID 报告 64 字节，主机侧 65 字节（Report ID 0 + 64 数据）
+* usage page `0xFF60`、usage `0x61`
+* 协议版本 `0x0D`
+* 命令 `0x01`–`0x09`
+* 只暴露 Direct 模式
+* 排除 `via.c`，不能与 VIA 同时使用
+* 4 键板输出 `ch552_qmk_4key_openrgb_qmk.hex`
+* 3×4 板输出 `ch552_qmk_openrgb_qmk.hex`
+
+响应最后两字节为状态（50 = 成功）和 `100`（End Of Message）。

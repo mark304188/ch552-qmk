@@ -30,6 +30,7 @@
 #if RGB_ENABLE && (WS2812_LED_COUNT > 0)
 
 static __xdata uint8_t led_buf[WS2812_LED_COUNT * 3];
+static __xdata uint8_t direct_rgb[WS2812_LED_COUNT * 3];
 
 static uint8_t  rgb_enabled;
 static uint8_t  rgb_brightness;
@@ -40,6 +41,8 @@ static uint8_t  rgb_speed;
 static uint16_t rgb_phase;
 static uint16_t rgb_last_ms;
 static uint8_t  rgb_off_sent;
+static uint8_t  direct_active;
+static uint8_t  direct_dirty;
 
 /*---------------------------------------------------------------*
  * HSV -> RGB                                                    *
@@ -114,6 +117,61 @@ static void set_led(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
     led_buf[index * 3 + 1] = g;
     led_buf[index * 3 + 2] = b;
 #endif
+}
+
+void rgb_set_direct_mode(uint8_t active)
+{
+    if (active) {
+        direct_active = 1;
+        direct_dirty = 1;
+    } else if (direct_active) {
+        direct_active = 0;
+        rgb_off_sent = 0;
+        rgb_last_ms = 0;
+    }
+}
+
+uint8_t rgb_get_direct_mode(void)
+{
+    return direct_active;
+}
+
+void rgb_set_direct_led(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+{
+    if (index >= WS2812_LED_COUNT) {
+        return;
+    }
+
+    direct_rgb[index * 3 + 0] = r;
+    direct_rgb[index * 3 + 1] = g;
+    direct_rgb[index * 3 + 2] = b;
+    set_led(index, r, g, b);
+    direct_active = 1;
+    direct_dirty = 1;
+}
+
+void rgb_set_direct_hsv(uint8_t index, uint8_t h, uint8_t s, uint8_t v) __reentrant
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+
+    hsv_to_rgb(h, s, v, &r, &g, &b);
+    rgb_set_direct_led(index, r, g, b);
+}
+
+void rgb_get_direct_led(uint8_t index, uint8_t *r, uint8_t *g, uint8_t *b) __reentrant
+{
+    if (index >= WS2812_LED_COUNT) {
+        *r = 0;
+        *g = 0;
+        *b = 0;
+        return;
+    }
+
+    *r = direct_rgb[index * 3 + 0];
+    *g = direct_rgb[index * 3 + 1];
+    *b = direct_rgb[index * 3 + 2];
 }
 
 static void set_led_hsv(uint8_t index, uint8_t h, uint8_t s, uint8_t v)
@@ -282,6 +340,8 @@ void rgb_save(void)
 
 void rgb_reset(void)
 {
+    uint8_t i;
+
     rgb_brightness = RGB_DEFAULT_BRIGHTNESS;
     rgb_hue        = RGB_DEFAULT_HUE;
     rgb_sat        = RGB_DEFAULT_SAT;
@@ -289,11 +349,18 @@ void rgb_reset(void)
     rgb_speed      = RGB_DEFAULT_SPEED;
     rgb_enabled    = (rgb_effect != 0);
     rgb_phase      = 0;
+    direct_active  = 0;
+    direct_dirty   = 0;
+    for (i = 0; i < sizeof(direct_rgb); i++) {
+        direct_rgb[i] = 0;
+    }
     rgb_save();
 }
 
 void rgb_init(void) __reentrant
 {
+    uint8_t i;
+
     ws2812_init();
 
     if (!load_config()) {
@@ -301,6 +368,11 @@ void rgb_init(void) __reentrant
     }
 
     rgb_phase = 0;
+    direct_active = 0;
+    direct_dirty = 0;
+    for (i = 0; i < sizeof(direct_rgb); i++) {
+        direct_rgb[i] = 0;
+    }
     rgb_last_ms = timer_ms();
     render_frame();
     ws2812_show(led_buf, WS2812_LED_COUNT);
@@ -310,6 +382,14 @@ void rgb_init(void) __reentrant
 void rgb_task(void) __reentrant
 {
     uint16_t now;
+
+    if (direct_active) {
+        if (direct_dirty) {
+            direct_dirty = 0;
+            ws2812_show(led_buf, WS2812_LED_COUNT);
+        }
+        return;
+    }
 
     if (!rgb_enabled || rgb_brightness == 0) {
         if (!rgb_off_sent) {
@@ -350,6 +430,11 @@ uint8_t rgb_get_brightness(void)
 
 void rgb_set_effect(uint8_t value)
 {
+    direct_active = 0;
+    direct_dirty = 0;
+    rgb_off_sent = 0;
+    rgb_last_ms = 0;
+
     if (value == 0) {
         rgb_enabled = 0;
         rgb_effect = 0;
@@ -361,6 +446,9 @@ void rgb_set_effect(uint8_t value)
 
 uint8_t rgb_get_effect(void)
 {
+    if (direct_active) {
+        return 0;
+    }
     return rgb_enabled ? rgb_effect : 0;
 }
 
@@ -411,6 +499,11 @@ uint8_t rgb_get_hue(void) { return 0; }
 uint8_t rgb_get_sat(void) { return 0; }
 void rgb_reset(void) {}
 void rgb_save(void) {}
+void rgb_set_direct_mode(uint8_t active) { (void)active; }
+uint8_t rgb_get_direct_mode(void) { return 0; }
+void rgb_set_direct_led(uint8_t index, uint8_t r, uint8_t g, uint8_t b) { (void)index; (void)r; (void)g; (void)b; }
+void rgb_set_direct_hsv(uint8_t index, uint8_t h, uint8_t s, uint8_t v) __reentrant { (void)index; (void)h; (void)s; (void)v; }
+void rgb_get_direct_led(uint8_t index, uint8_t *r, uint8_t *g, uint8_t *b) __reentrant { (void)index; *r = 0; *g = 0; *b = 0; }
 void rgb_key_event(uint8_t key_index, uint8_t pressed) { (void)key_index; (void)pressed; }
 
 #endif

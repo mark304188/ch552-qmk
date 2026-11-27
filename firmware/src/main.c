@@ -15,7 +15,11 @@
 #include "debug.h"
 #include "usb.h"
 #include "keyboard.h"
+#if OPENRGB_QMK
+#include "openrgb.h"
+#else
 #include "via.h"
+#endif
 #include "rgb.h"
 
 /* SDCC emits the interrupt vector table in the module that defines main(),
@@ -80,9 +84,15 @@ void main(void)
     while (1) {
         uint16_t now;
 
-        /* Raw HID: a received 32-byte VIA report and a queued reply. */
+        /* Raw HID: a received VIA report and a queued reply.  The
+         * VialRGB build still uses via_handle(); OpenRGB lighting is a
+         * subset of the normal VIA command dispatcher. */
         if (usb_raw_out_ready()) {
+#if OPENRGB_QMK
+            openrgb_handle(usb_raw_out_data(), RAW_HID_SIZE);
+#else
             via_handle(usb_raw_out_data(), RAW_HID_SIZE);
+#endif
             usb_raw_release();
         }
         usb_raw_task();

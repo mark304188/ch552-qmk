@@ -16,6 +16,7 @@ Examples:
     ./via_probe.py rgb-brightness 96
     ./via_probe.py rgb-color 0 255
     ./via_probe.py save-rgb
+    ./via_probe.py vialrgb
 """
 
 import argparse
@@ -148,6 +149,46 @@ def cmd_save_rgb(dev, _args):
     print("saved")
 
 
+def cmd_vialrgb(dev, _args):
+    r = xfer(dev, [0xFE, 0x00])
+    version = int.from_bytes(r[0:4], "little")
+    uid = "".join(f"{b:02X}" for b in r[4:12])
+    print(f"Vial protocol: {version}")
+    print(f"UID          : {uid}")
+    print(f"VialRGB flag : {r[12] & 1}")
+
+    r = xfer(dev, [0x08, 0x40])
+    info_version = r[2] | (r[3] << 8)
+    print(f"VialRGB       : {info_version}, max brightness {r[4]}")
+
+    r = xfer(dev, [0x08, 0x41])
+    mode = r[2] | (r[3] << 8)
+    print(f"mode          : {mode}, speed {r[4]}, "
+          f"HSV {r[5]} {r[6]} {r[7]}")
+
+    effects = []
+    greater_than = 0
+    while greater_than != 0xFFFF:
+        r = xfer(dev, [0x08, 0x42, greater_than & 0xFF,
+                       (greater_than >> 8) & 0xFF])
+        for off in range(2, 32, 2):
+            effect = r[off] | (r[off + 1] << 8)
+            if effect == 0xFFFF:
+                greater_than = 0xFFFF
+                break
+            effects.append(effect)
+            greater_than = effect
+    print("effects       : " + ", ".join(str(e) for e in effects))
+
+    r = xfer(dev, [0x08, 0x43])
+    count = r[2] | (r[3] << 8)
+    print(f"LED count     : {count}")
+    for led in range(count):
+        r = xfer(dev, [0x08, 0x44, led & 0xFF, (led >> 8) & 0xFF])
+        print(f"  LED {led:2d}: x={r[2]:3d} y={r[3]:3d} "
+              f"flags=0x{r[4]:02x} row={r[5]} col={r[6]} valid={r[7]}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
@@ -156,6 +197,7 @@ def main():
     sub.add_parser("matrix")
     sub.add_parser("rgb")
     sub.add_parser("save-rgb")
+    sub.add_parser("vialrgb")
 
     p = sub.add_parser("get")
     p.add_argument("layer", type=int)
@@ -187,6 +229,8 @@ def main():
             cmd_rgb(dev, args)
         elif args.command == "save-rgb":
             cmd_save_rgb(dev, args)
+        elif args.command == "vialrgb":
+            cmd_vialrgb(dev, args)
         else:
             args.func(dev, args)
     finally:

@@ -2,19 +2,34 @@
 #
 # Targets: all (default), flash, size, clean
 # Board:   BOARD=4key (default, direct 4-key board) or BOARD=default (3x4 matrix)
+# OpenRGB: the 4-key firmware includes VialRGB (VIA + OpenRGB) by default.
+#          OPENRGB_QMK=1 builds the legacy 64-byte QMK-OpenRGB rev D
+#          protocol instead (VIA cannot be used with that build).
+#
+# The 3x4 VIA firmware is VIA-only: it is already close to the 14 KB
+# application limit, so VialRGB does not fit there.
 #
 # Requires SDCC 4.x.  The CH552 has 16 KB flash; the upper 2 KB
 # (0x3800-0x3FFF) is the WCH ISP bootloader, so application code is
 # limited to 0x3800 bytes.
 
 BOARD ?= 4key
+OPENRGB_QMK ?= 0
+
+SRC_DIR := firmware/src
+INC_DIR := firmware/include
+BUILD_DIR := build
 
 ifeq ($(BOARD),4key)
 PROJECT := ch552_qmk_4key
 BOARD_CFLAGS := -DBOARD_4KEY
+VIALRGB_CFLAGS := -DVIALRGB_ENABLE=1
+VIALRGB_SOURCE := $(SRC_DIR)/vialrgb.c
 else
 PROJECT := ch552_qmk
 BOARD_CFLAGS :=
+VIALRGB_CFLAGS :=
+VIALRGB_SOURCE :=
 endif
 
 .DEFAULT_GOAL := all
@@ -40,10 +55,6 @@ PACKIHX ?= packihx
 OBJCOPY ?= objcopy
 FLASHER ?= ch55xtool
 
-SRC_DIR := firmware/src
-INC_DIR := firmware/include
-BUILD_DIR := build
-
 C_FILES := \
 	$(SRC_DIR)/main.c \
 	$(SRC_DIR)/usb.c \
@@ -55,6 +66,19 @@ C_FILES := \
 	$(SRC_DIR)/eeprom.c \
 	$(SRC_DIR)/debug.c
 
+ifeq ($(OPENRGB_QMK),1)
+# Legacy OpenRGB QMK revision D: 64-byte reports, no VIA.
+PROJECT := $(PROJECT)_openrgb_qmk
+OPENRGB_QMK_CFLAGS := -DOPENRGB_QMK=1
+VIALRGB_CFLAGS :=
+C_FILES := $(filter-out $(SRC_DIR)/via.c,$(C_FILES))
+C_FILES += $(SRC_DIR)/openrgb.c
+else
+# Default 4-key build: VIA + VialRGB in the same firmware.
+OPENRGB_QMK_CFLAGS :=
+C_FILES += $(VIALRGB_SOURCE)
+endif
+
 INCLUDES := -I$(INC_DIR)
 
 CFLAGS := \
@@ -63,6 +87,8 @@ CFLAGS := \
 	--code-size $(CODE_SIZE) \
 	-DFREQ_SYS=$(FREQ_SYS) \
 	$(BOARD_CFLAGS) \
+	$(VIALRGB_CFLAGS) \
+	$(OPENRGB_QMK_CFLAGS) \
 	$(INCLUDES) \
 	--std-sdcc11 --opt-code-speed
 

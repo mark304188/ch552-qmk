@@ -13,6 +13,11 @@
  *   0x0C/0x0D/0x0E/0x0F/0x10 macro stubs (no macros in this build)
  *   0x11 layer count
  *   0x12/0x13 dynamic keymap buffer get/set
+ *   0xFE Vial keyboard ID / VialRGB detection (default 4-key build)
+ *
+ * On the default 4-key build, lighting commands 0x07/0x08 additionally
+ * accept VialRGB sub-commands 0x40..0x44 so OpenRGB can control the
+ * WS2812 LEDs while VIA keeps the dynamic keymap.
  *==========================================================================*/
 
 #include <ch552.h>
@@ -24,6 +29,9 @@
 #include "rgb.h"
 #include "keycodes.h"
 #include "debug.h"
+#if VIALRGB_ENABLE
+#include "vialrgb.h"
+#endif
 
 /* VIA command IDs. */
 #define id_get_protocol_version                 0x01
@@ -45,6 +53,7 @@
 #define id_dynamic_keymap_get_layer_count       0x11
 #define id_dynamic_keymap_get_buffer            0x12
 #define id_dynamic_keymap_set_buffer            0x13
+#define id_vial_prefix                          0xFE
 
 #define id_unhandled                            0xFF
 
@@ -129,11 +138,6 @@ static void via_custom(uint8_t *data, uint8_t command) __reentrant
         return;
     }
 
-    if (command == id_custom_save) {
-        rgb_save();
-        return;
-    }
-
     data[0] = id_unhandled;
 }
 
@@ -141,8 +145,6 @@ void via_handle(uint8_t *data, uint8_t length) __reentrant
 {
     uint8_t command = data[0];
     uint8_t i;
-
-    (void)length;
 
     switch (command) {
     case id_get_protocol_version:
@@ -173,7 +175,7 @@ void via_handle(uint8_t *data, uint8_t length) __reentrant
             break;
         }
         case id_firmware_version:
-            put_u32_be(&data[2], 0x00010001UL);
+            put_u32_be(&data[2], 0x00010002UL);
             break;
         case id_keycodes_version:
             put_u32_be(&data[2], 0x00000009UL);
@@ -208,10 +210,38 @@ void via_handle(uint8_t *data, uint8_t length) __reentrant
         break;
 
     case id_custom_set_value:
-    case id_custom_get_value:
-    case id_custom_save:
-        via_custom(data, command);
+#if VIALRGB_ENABLE
+        if (vialrgb_is_set_command(data[1])) {
+            vialrgb_set_value(data, length);
+        } else
+#endif
+        {
+            via_custom(data, command);
+        }
         break;
+
+    case id_custom_get_value:
+#if VIALRGB_ENABLE
+        if (vialrgb_is_get_command(data[1])) {
+            vialrgb_get_value(data, length);
+        } else
+#endif
+        {
+            via_custom(data, command);
+        }
+        break;
+
+    case id_custom_save:
+        /* VIA's custom-channel save and VialRGB's save both end up
+         * persisting the same RGB block.  Accept either packet shape. */
+        rgb_save();
+        break;
+
+#if VIALRGB_ENABLE
+    case id_vial_prefix:
+        vialrgb_handle_vial(data, length);
+        break;
+#endif
 
     case id_eeprom_reset:
         keyboard_reset_keymap();

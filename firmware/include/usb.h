@@ -20,7 +20,14 @@
 #define RAW_EP_IN       0x82
 #define RAW_EP_OUT      0x03
 
+/* Normal VIA builds and the VialRGB/OpenRGB build both use 32-byte
+ * reports.  The legacy QMK-OpenRGB rev D build is the only one that
+ * needs the 64-byte endpoint. */
+#ifdef OPENRGB_QMK
+#define RAW_HID_SIZE    64
+#else
 #define RAW_HID_SIZE    32
+#endif
 #define KBD_REPORT_SIZE 9   /* report ID + 8 bytes */
 
 void usb_init(void);

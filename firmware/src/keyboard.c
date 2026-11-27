@@ -25,7 +25,7 @@
 #include "rgb.h"
 #include "debug.h"
 
-#define KEYMAP_EE_VERSION 2
+#define KEYMAP_EE_VERSION 3
 #define KEYMAP_BYTES      ((uint16_t)(KEY_COUNT * DYNAMIC_KEYMAP_LAYERS * 2))
 #define KEYMAP_CHECKSUM   ((uint8_t)(EE_KEYMAP_BASE + KEYMAP_BYTES))
 

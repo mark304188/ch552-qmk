@@ -26,6 +26,7 @@ The default build target is the **4-key direct-wired board**: just run
 * Layers (`MO` / `TG`) and transparent keys (`KC_TRNS`)
 * WS2812/WS2812B RGB, using hardware SPI encoding or a GPIO bit-bang driver
 * Common QMK keycodes, media keys, `QK_BOOTLOADER`, `QK_CLEAR_EEPROM`
+* VialRGB included by default: VIA remapping and OpenRGB lighting at the same time
 * SDCC build, 16 MHz by default; 12/24 MHz supported
 
 > This is a lightweight "QMK protocol compatible" implementation, not full
@@ -50,6 +51,8 @@ The default build target is the **4-key direct-wired board**: just run
 │   │   ├── keyboard.h
 │   │   ├── matrix.h
 │   │   ├── via.h
+│   │   ├── vialrgb.h           Vial/OpenRGB lighting commands
+│   │   ├── openrgb.h           legacy QMK-OpenRGB header
 │   │   ├── rgb.h
 │   │   ├── ws2812.h
 │   │   ├── eeprom.h
@@ -60,6 +63,8 @@ The default build target is the **4-key direct-wired board**: just run
 │       ├── keyboard.c          scan/debounce, layers, dynamic keymap, HID reports
 │       ├── matrix.c            matrix / direct-pin scanner
 │       ├── via.c               VIA raw HID command dispatcher
+│       ├── vialrgb.c           Vial ID + VialRGB lighting commands
+│       ├── openrgb.c           legacy QMK-OpenRGB (OPENRGB_QMK=1)
 │       ├── rgb.c               RGB effects and VIA settings
 │       ├── ws2812.c            SPI / bit-bang WS2812 driver
 │       ├── eeprom.c            Data Flash access
@@ -70,7 +75,8 @@ The default build target is the **4-key direct-wired board**: just run
 │   ├── ch552_qmk_4key.json     VIA 3 definition (4-key board)
 │   └── ch552_qmk_4key_via2.json VIA 2 compatible definition (4-key)
 ├── tools/
-│   └── via_probe.py            command-line VIA protocol probe
+│   ├── via_probe.py            command-line VIA protocol probe
+│   └── openrgb_register_vialrgb.py  OpenRGB auto-detect setup script
 └── docs/
     ├── hardware.md
     └── protocol.md
@@ -140,8 +146,11 @@ sent on this board. Default keymap:
 But1 -> 1
 But2 -> 2
 But3 -> 3
-But4 -> MO(1)    hold But4: But1..But3 become F1..F3
+But4 -> 4
 ```
+
+Layer 1 contains F1-F4. If you want a layer key later, remap one key to
+`MO(1)` or `TG(1)` in VIA.
 
 Build and flash:
 
@@ -192,10 +201,14 @@ make BOARD=default   # 3x4 matrix board
 Outputs:
 
 ```
-build/ch552_qmk_4key.hex   Intel HEX for the default 4-key board
+build/ch552_qmk_4key.hex   Intel HEX for the default 4-key board (VIA + VialRGB)
 build/ch552_qmk_4key.bin   raw binary for the default 4-key board
-build/ch552_qmk.hex        Intel HEX for the 3x4 board
+build/ch552_qmk.hex        Intel HEX for the 3x4 board (VIA-only)
 build/ch552_qmk.bin        raw binary for the 3x4 board
+
+# optional legacy lighting-only QMK-OpenRGB builds
+build/ch552_qmk_4key_openrgb_qmk.hex
+build/ch552_qmk_openrgb_qmk.hex
 ```
 
 Common options:
@@ -203,6 +216,9 @@ Common options:
 ```bash
 make VCC=3V3            # 3.3 V supply, 12 MHz by default
 make FREQ_SYS=24000000  # 24 MHz (5 V)
+make                    # 4-key board, VIA + VialRGB by default
+make OPENRGB_QMK=1      # legacy lighting-only OpenRGB (64-byte, no VIA)
+make BOARD=default      # 3x4 board, VIA-only (no room for VialRGB)
 make clean
 make size
 ```
@@ -374,10 +390,108 @@ pip install pyusb
 ./tools/via_probe.py info
 ./tools/via_probe.py get 0 0 0
 ./tools/via_probe.py rgb
+./tools/via_probe.py vialrgb    # default 4-key firmware
 ```
 
 On Linux, if `usbhid` owns the raw HID interface, the script attempts to
 detach it. Running with `sudo` is also an option.
+
+---
+
+## OpenRGB support (VIA + VialRGB)
+
+The default 4-key firmware already includes the **VialRGB** lighting
+commands. No extra build option is needed, and the raw HID reports stay at
+**32 bytes**:
+
+* VIA can still read/write the dynamic keymap, layers, matrix state and
+  lighting settings.
+* OpenRGB controls the `WS2812_LED_COUNT` WS2812 LEDs through its VialRGB
+  driver.
+* Both programs use the same HID interface, and their command IDs no
+  longer conflict.
+
+```bash
+make                           # default 4-key board, VIA + VialRGB
+# output: build/ch552_qmk_4key.hex
+```
+
+The 4-key default keymap remains `1 2 3 4`; OpenRGB never changes the
+keymap. Remap and save in VIA first, then use OpenRGB for lighting.
+
+### Add the device in OpenRGB
+
+Use an OpenRGB build that includes the **QMK VialRGB** driver (a recent
+1.0rc or nightly build).
+
+OpenRGB's VialRGB detector **does not scan every HID device**. It only
+checks VID/PIDs listed in `OpenRGB.json`, plus a couple of hard-coded
+devices. The old QMK OpenRGB build appeared automatically because its
+manual entry was already saved in the configuration; VialRGB uses a
+different settings section and does not inherit it.
+
+Register the device once, using either method:
+
+**Method A: add it once in the UI** (later scans are automatic)
+
+1. **Settings -> Manually Added Devices**
+2. Choose **QMK VialRGB Device** (not the old QMK OpenRGB Device)
+3. VID `0x1209`, PID `0x5524`, any name
+4. Save and rescan
+
+**Method B: let the script edit OpenRGB.json** (no UI clicks)
+
+Close OpenRGB completely, then run:
+
+```bash
+python tools/openrgb_register_vialrgb.py
+# On Windows:
+py tools\openrgb_register_vialrgb.py
+```
+
+The script backs up `OpenRGB.json` and adds `1209:5524` to
+`QMKVialRGBDevices`. OpenRGB will then detect the device automatically on
+future scans; the VIA VID/PID and keymap are unchanged.
+
+The device version should show:
+
+```text
+VIA: 13
+Vial: 4
+VialRGB: 1
+```
+
+OpenRGB lists all four LEDs and offers:
+
+* **Direct**: per-LED HSV data, suitable for OpenRGB effects.
+* **Static**: one colour selected in OpenRGB.
+
+The other built-in animations remain available from VIA's lighting page.
+OpenRGB does not automatically write the lighting settings to Data Flash;
+save once in VIA if you want them to survive a power cycle.
+
+> The 4-key default keymap is `1 2 3 4`, so OpenRGB lists all four LEDs.
+> The firmware supports both VIA and VialRGB, but they share one raw HID
+> interface. On Windows, two programs reading it at the same time can
+> steal each other's replies. Close VIA while adding the device in
+> OpenRGB, and prefer running only one program actively at a time.
+>
+> The 3x4 VIA firmware is already close to the 14 KB application limit and
+> cannot include VialRGB. For OpenRGB on the 3x4 board, use the legacy
+> lighting-only build below.
+
+### Legacy lighting-only OpenRGB build
+
+`OPENRGB_QMK=1` keeps the original QMK-OpenRGB revision D: 64-byte raw HID
+reports, Direct mode only, and no VIA support.
+
+```bash
+make OPENRGB_QMK=1                 # 4-key board
+make BOARD=default OPENRGB_QMK=1   # 3x4 board
+```
+
+In OpenRGB, add **QMK OpenRGB Device** with VID `0x1209` and PID `0x5524`
+(4-key) or `0x5523` (3x4). This build cannot be used together with VIA.
 
 ---
 
@@ -438,13 +552,14 @@ storage layout (document is in Chinese).
 
 * EP0: control transfers, standard requests and HID class requests
 * EP1 IN `0x81`: keyboard / media reports
-* EP2 IN `0x82`: VIA raw HID IN
-* EP3 OUT `0x03`: VIA raw HID OUT
+* EP2 IN `0x82`: VIA / VialRGB raw HID IN
+* EP3 OUT `0x03`: VIA / VialRGB raw HID OUT
+* The default 4-key firmware and the normal 3x4 VIA firmware use 32-byte reports; only legacy `OPENRGB_QMK=1` uses 64 bytes
 * Report descriptors:
   * `CONSUMER_ENABLE 1`: report ID 1 keyboard + report ID 2 Consumer
   * `CONSUMER_ENABLE 0`: plain 8-byte keyboard without report IDs (4-key
     board)
-  * separate HID interface: usage page `0xFF60`, 32-byte raw HID
+  * separate HID interface: usage page `0xFF60`, 32-byte raw HID (64 bytes for legacy OpenRGB)
 * Boot protocol supported: after `SET_PROTOCOL(0)` the keyboard report has
   no report ID and media reports are stopped.
 

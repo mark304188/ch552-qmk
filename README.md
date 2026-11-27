@@ -24,6 +24,7 @@
 * 分层（MO / TG）与透明键 `KC_TRNS`
 * WS2812/WS2812B RGB，使用硬件 SPI 编码，不依赖精确的软件延时
 * 支持常用 QMK 键码、多媒体键、`QK_BOOTLOADER`、`QK_CLEAR_EEPROM`
+* 默认包含 VialRGB：VIA 改键与 OpenRGB 控灯同时工作
 * SDCC 构建，默认 16 MHz；可切 12/24 MHz
 
 > 这是“QMK 协议兼容”的轻量实现，不是完整 QMK。宏、Tap Dance、
@@ -47,6 +48,8 @@
 │   │   ├── keyboard.h
 │   │   ├── matrix.h
 │   │   ├── via.h
+│   │   ├── vialrgb.h           Vial/OpenRGB 灯光命令
+│   │   ├── openrgb.h           旧版 QMK-OpenRGB 头文件
 │   │   ├── rgb.h
 │   │   ├── ws2812.h
 │   │   ├── eeprom.h
@@ -57,6 +60,8 @@
 │       ├── keyboard.c          扫描消抖、分层、动态键位、HID 报告
 │       ├── matrix.c            矩阵 / 直连扫描
 │       ├── via.c               VIA raw HID 命令分发
+│       ├── vialrgb.c           Vial ID + VialRGB 灯光命令
+│       ├── openrgb.c           旧版 QMK-OpenRGB（OPENRGB_QMK=1）
 │       ├── rgb.c               RGB 效果与 VIA 设置
 │       ├── ws2812.c            SPI 编码 WS2812 驱动
 │       ├── eeprom.c            Data Flash 读写
@@ -67,7 +72,8 @@
 │   ├── ch552_qmk_4key.json     VIA 3 键盘定义（4 键直连板）
 │   └── ch552_qmk_4key_via2.json VIA 2 兼容定义（4 键）
 ├── tools/
-│   └── via_probe.py            不依赖 VIA 的命令行协议测试工具
+│   ├── via_probe.py            不依赖 VIA 的命令行协议测试工具
+│   └── openrgb_register_vialrgb.py  OpenRGB 自动识别配置脚本
 └── docs/
     ├── hardware.md
     └── protocol.md
@@ -128,8 +134,11 @@ boot keyboard**（无 report ID、无 Consumer 集合），这是为了 Windows
 But1 -> 1
 But2 -> 2
 But3 -> 3
-But4 -> MO(1)    按住 But4 时，But1..But3 变成 F1..F3
+But4 -> 4
 ```
+
+默认第 1 层是 F1–F4；如果以后需要层键，可以在 VIA 里把某个键改成
+`MO(1)` 或 `TG(1)`。
 
 编译和烧录：
 
@@ -175,10 +184,14 @@ make BOARD=default   # 3×4 矩阵板
 输出：
 
 ```
-build/ch552_qmk_4key.hex   默认 4 键板的 Intel HEX
-build/ch552_qmk_4key.bin   默认 4 键板的原始二进制
-build/ch552_qmk.hex        3×4 板的 Intel HEX
-build/ch552_qmk.bin        3×4 板的原始二进制
+build/ch552_qmk_4key.hex   默认 4 键板 Intel HEX（VIA + VialRGB）
+build/ch552_qmk_4key.bin   默认 4 键板原始二进制
+build/ch552_qmk.hex        3×4 板 Intel HEX（VIA-only）
+build/ch552_qmk.bin        3×4 板原始二进制
+
+# 旧版仅灯光 QMK-OpenRGB 构建（可选）
+build/ch552_qmk_4key_openrgb_qmk.hex
+build/ch552_qmk_openrgb_qmk.hex
 ```
 
 常用选项：
@@ -186,6 +199,9 @@ build/ch552_qmk.bin        3×4 板的原始二进制
 ```bash
 make VCC=3V3            # 3.3 V 供电，默认 12 MHz
 make FREQ_SYS=24000000  # 24 MHz（5 V）
+make                    # 4 键板，默认包含 VIA + VialRGB
+make OPENRGB_QMK=1      # 旧版仅灯光 OpenRGB（64 字节报告，无 VIA）
+make BOARD=default      # 3×4 板，VIA-only（空间不足）
 make clean
 make size
 ```
@@ -345,10 +361,99 @@ pip install pyusb
 ./tools/via_probe.py info
 ./tools/via_probe.py get 0 0 0
 ./tools/via_probe.py rgb
+./tools/via_probe.py vialrgb    # 默认 4 键固件
 ```
 
 在 Linux 上如果 raw HID 接口被 `usbhid` 占用，脚本会尝试 detach；
 也可以临时用 `sudo` 运行。
+
+---
+
+## OpenRGB 支持（VIA + VialRGB）
+
+默认的 4 键固件已经包含 **VialRGB** 灯光命令，不需要额外构建选项，
+并继续使用 **32 字节** raw HID 报告：
+
+* VIA 可以正常读取/写入动态键位、层、矩阵状态和灯光设置；
+* OpenRGB 通过 VialRGB 驱动控制 `WS2812_LED_COUNT` 颗 WS2812；
+* 两者使用同一个 HID 接口，命令号不再冲突。
+
+```bash
+make                           # 默认 4 键板，包含 VIA + VialRGB
+# 输出 build/ch552_qmk_4key.hex
+```
+
+4 键板的默认键位仍是 `1 2 3 4`，OpenRGB 不会修改键位。先在 VIA 里
+改键并保存，再打开 OpenRGB 控灯即可。
+
+### 在 OpenRGB 中添加设备
+
+需要包含 **QMK VialRGB** 驱动的 OpenRGB 版本（较新的 1.0rc / nightly）。
+
+OpenRGB 的 VialRGB 驱动 **不会扫描所有 HID 设备**：它只检查
+`OpenRGB.json` 里已登记的 VID/PID，以及内置的两三个白名单设备。上一版
+旧 QMK OpenRGB 能自动出现，是因为配置里已经保存了那次手动添加的条目；
+VialRGB 使用另一个配置节，不会自动继承旧条目。
+
+所以第一次需要登记一次。两种方式任选：
+
+**方式 A：在界面里添加一次**（之后 OpenRGB 会自动识别）
+
+1. **Settings → Manually Added Devices**
+2. 类型选择 **QMK VialRGB Device**（不是旧的 QMK OpenRGB Device）
+3. VID `0x1209`，PID `0x5524`，名称随意
+4. 保存后 Rescan
+
+**方式 B：用脚本直接写 OpenRGB 配置**（不用点界面）
+
+先完全关闭 OpenRGB，然后运行：
+
+```bash
+python tools/openrgb_register_vialrgb.py
+# Windows 也可以：
+py tools\openrgb_register_vialrgb.py
+```
+
+脚本会备份 `OpenRGB.json`，并把 `1209:5524` 加入
+`QMKVialRGBDevices`。之后重新打开 OpenRGB 即可自动扫描到设备，VIA 的
+VID/PID 和键位配置都不变。
+
+设备版本信息应显示：
+
+```text
+VIA: 13
+Vial: 4
+VialRGB: 1
+```
+
+OpenRGB 中会列出 4 颗灯，并提供：
+
+* **Direct**：OpenRGB 逐灯发送 HSV，适合 OpenRGB 的效果；
+* **Static**：单色，颜色由 OpenRGB 的取色器设置。
+
+其他内置动画仍由 VIA 的灯光页控制。OpenRGB 设置灯光时不会自动写
+Data Flash；需要掉电保存时，可在 VIA 里再保存一次当前灯光设置。
+
+> 4 键板默认键位为 `1 2 3 4`，因此 OpenRGB 中会列出 4 颗灯。固件同时
+> 支持 VIA 和 VialRGB，但二者共用一个 raw HID 接口；Windows 下多个
+> 程序同时读取可能互相抢包。添加 OpenRGB 设备时先关闭 VIA，平时尽量
+> 只让一个程序主动刷新。
+>
+> 3×4 板的 VIA 固件已经接近 14 KB 上限，无法再加入 VialRGB。3×4 板
+> 如需 OpenRGB，只能使用下面的旧版仅灯光构建。
+
+### 旧版仅灯光 OpenRGB 构建
+
+`OPENRGB_QMK=1` 仍保留原来的 QMK-OpenRGB revision D：64 字节 raw HID、
+只提供 Direct 模式、不包含 VIA。
+
+```bash
+make OPENRGB_QMK=1                 # 4 键板
+make BOARD=default OPENRGB_QMK=1   # 3×4 板
+```
+
+在 OpenRGB 中添加 **QMK OpenRGB Device**，VID `0x1209`，PID `0x5524`
+（4 键）或 `0x5523`（3×4）。这个构建与 VIA 不能同时使用。
 
 ---
 
@@ -403,12 +508,13 @@ value id：`1` 亮度、`2` 效果、`3` 速度、`4` 色相+饱和度。
 
 * EP0：控制传输，包含标准请求和 HID class 请求
 * EP1 IN `0x81`：键盘 / 多媒体报告
-* EP2 IN `0x82`：VIA raw HID IN
-* EP3 OUT `0x03`：VIA raw HID OUT
+* EP2 IN `0x82`：VIA / VialRGB raw HID IN
+* EP3 OUT `0x03`：VIA / VialRGB raw HID OUT
+* 默认 4 键固件和普通 3×4 VIA 固件都使用 32 字节报告；仅旧版 `OPENRGB_QMK=1` 使用 64 字节
 * 报告描述符：
   * `CONSUMER_ENABLE 1`：report ID 1 键盘 + report ID 2 Consumer
   * `CONSUMER_ENABLE 0`：无 report ID 的标准 8 字节键盘（4 键板）
-  * 另一个 HID 接口：usage page `0xFF60`，32 字节 raw HID
+  * 另一个 HID 接口：usage page `0xFF60`，32 字节 raw HID（旧版 OpenRGB 为 64 字节）
 * 支持 boot protocol：`SET_PROTOCOL(0)` 后键盘报告不带 report ID，
   并停止发送多媒体报告。
 
